@@ -68,12 +68,9 @@ instance Monad Optional where
 -- >>> ((*) =<< (+10)) 7
 -- 119
 instance Monad ((->) t) where
-  (=<<) ::
-    (a -> ((->) t b))
-    -> ((->) t a)
-    -> ((->) t b)
-  (=<<) =
-    error "todo: Course.Monad (=<<)#instance ((->) t)"
+  (=<<) :: (a -> (t -> b)) -> (t -> a) -> (t -> b)
+  (=<<) = \a2t2b t2a t -> (a2t2b (t2a t)) t
+  --
 
 -- | Witness that all things with (=<<) and (<$>) also have (<*>).
 --
@@ -129,12 +126,9 @@ infixl 4 <**>
 --
 -- >>> join (+) 7
 -- 14
-join ::
-  Monad f =>
-  f (f a)
-  -> f a
-join =
-  error "todo: Course.Monad#join"
+join :: Monad f => f (f a) -> f a
+join = 
+  (=<<) id
 
 -- | Implement a flipped version of @(=<<)@, however, use only
 -- @join@ and @(<$>)@.
@@ -148,7 +142,7 @@ join =
   -> (a -> f b)
   -> f b
 (>>=) =
-  error "todo: Course.Monad#(>>=)"
+  flip (=<<)
 
 infixl 1 >>=
 
@@ -157,14 +151,10 @@ infixl 1 >>=
 --
 -- >>> ((\n -> n :. n :. Nil) <=< (\n -> n+1 :. n+2 :. Nil)) 1
 -- [2,2,3,3]
-(<=<) ::
-  Monad f =>
-  (b -> f c)
-  -> (a -> f b)
-  -> a
-  -> f c
+(<=<) :: Monad f => (b -> f c) -> (a -> f b) -> a -> f c
 (<=<) =
-  error "todo: Course.Monad#(<=<)"
+  \b2fc a2fb a -> a2fb a >>= b2fc
+  --(.) (>>=)
 
 infixr 1 <=<
 
