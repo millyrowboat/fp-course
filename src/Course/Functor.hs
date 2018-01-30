@@ -20,10 +20,7 @@ import qualified Prelude as P(fmap)
 --   `∀f g x.(f . g <$> x) ≅ (f <$> (g <$> x))`
 class Functor f where
   -- Pronounced, eff-map.
-  (<$>) ::
-    (a -> b)
-    -> f a
-    -> f b
+  (<$>) :: (a -> b) -> f a -> f b
 
 infixl 4 <$>
 
@@ -56,8 +53,9 @@ instance Functor List where
     (a -> b)
     -> List a
     -> List b
-  (<$>) =
-    error "todo: Course.Functor (<$>)#instance List"
+  (<$>) _ Nil = Nil
+-- Cheat: (<$>) = map
+  (<$>) f (h:.t) = f h:.(f <$> t)
 
 -- | Maps a function on the Optional functor.
 --
@@ -71,20 +69,16 @@ instance Functor Optional where
     (a -> b)
     -> Optional a
     -> Optional b
-  (<$>) =
-    error "todo: Course.Functor (<$>)#instance Optional"
+  (<$>) = mapOptional
 
 -- | Maps a function on the reader ((->) t) functor.
 --
 -- >>> ((+1) <$> (*2)) 8
 -- 17
 instance Functor ((->) t) where
-  (<$>) ::
-    (a -> b)
-    -> ((->) t a)
-    -> ((->) t b)
-  (<$>) =
-    error "todo: Course.Functor (<$>)#((->) t)"
+  (<$>) :: (a -> b) -> (t -> a) -> (t -> b)
+--Fast way:  (<$>) = (.)
+  (<$>) = \a2b t2a t -> a2b (t2a t)
 
 -- | Anonymous map. Maps a constant value on a functor.
 --
@@ -94,13 +88,35 @@ instance Functor ((->) t) where
 -- prop> x <$ (a :. b :. c :. Nil) == (x :. x :. x :. Nil)
 --
 -- prop> x <$ Full q == Full x
-(<$) ::
-  Functor f =>
-  a
-  -> f b
-  -> f a
+(<$) :: Functor f => a -> f b -> f a
 (<$) =
-  error "todo: Course.Functor#(<$)"
+  \a x -> (<$>) (\_ -> a) x
+  -- (<$>) . const
+
+
+
+
+
+
+-- ###################
+-- Making a point: Exercises
+-- anon1 :: a -> List b -> List b
+-- anon1 = \a x -> map (\_ -> a) x
+
+-- anon2 :: a -> List b -> List b
+-- anon2 = \a x -> mapOptional (\_ -> a) x
+
+--etcetc How do we remove repetition?
+-- Use a map that works for all instances of Functor!
+-- We write these so we don't have to repeat ourselves.
+-- Just like writing a sort function for every kind of list
+
+-- #####################
+
+
+
+
+
 
 -- | Anonymous map producing unit value.
 --
@@ -115,12 +131,9 @@ instance Functor ((->) t) where
 --
 -- >>> void (+10) 5
 -- ()
-void ::
-  Functor f =>
-  f a
-  -> f ()
+void :: Functor f => f a -> f ()
 void =
-  error "todo: Course.Functor#void"
+  (<$) ()
 
 -----------------------
 -- SUPPORT LIBRARIES --
