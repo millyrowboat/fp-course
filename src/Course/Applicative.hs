@@ -26,14 +26,15 @@ import qualified Prelude as P(fmap, return, (>>=))
 --
 -- * The law of composition
 --   `∀u v w. pure (.) <*> u <*> v <*> w ≅ u <*> (v <*> w)`
-
+--
+--
+--
+--
+-- THis means you must have instanced Functor first before Applicative
+-- Applicative means teaching our functions about application
 class Functor f => Applicative f where
-  pure ::
-    a -> f a
-  (<*>) ::
-    f (a -> b)
-    -> f a
-    -> f b
+  pure :: a -> f a
+  (<*>) :: f (a -> b) -> f a -> f b
 
 infixl 4 <*>
 
@@ -63,19 +64,20 @@ instance Applicative ExactlyOne where
 -- >>> (+1) :. (*2) :. Nil <*> 1 :. 2 :. 3 :. Nil
 -- [2,3,4,2,4,6]
 instance Applicative List where
-  pure ::
-    a
-    -> List a
-  pure =
-    error "todo: Course.Applicative pure#instance List"
-  (<*>) ::
-    List (a -> b)
-    -> List a
-    -> List b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance List"
+  pure :: a -> List a
+  pure = \a -> a:.Nil
+  
+  (<*>) :: List (a -> b) -> List a -> List b
+--(<*>) fs as = flatMap (\f -> map f as) fs
+  (<*>) fs as = flatMap (\f -> flatMap (pure . f) as) fs
+  -- f:: a -> b
 
--- | Witness that all things with (<*>) and pure also have (<$>).
+  {-
+  (<*>) Nil _ = Nil
+  (<*>) _ Nil = Nil
+  (<*>) (h:.t) a = (map h a)++(<*>) t a
+  -}
+-- | Witness that all thing:s with (<*>) and pure also have (<$>have).
 --
 -- >>> (+1) <$$> (ExactlyOne 2)
 -- ExactlyOne 3
@@ -106,18 +108,24 @@ instance Applicative List where
 -- >>> Full (+8) <*> Empty
 -- Empty
 instance Applicative Optional where
-  pure ::
-    a
-    -> Optional a
-  pure =
-    error "todo: Course.Applicative pure#instance Optional"
-  (<*>) ::
-    Optional (a -> b)
-    -> Optional a
-    -> Optional b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance Optional"
-
+  pure :: a -> Optional a
+  pure = Full
+  (<*>) :: Optional (a -> b) -> Optional a -> Optional b
+  (<*>) optf opta = 
+    case optf of
+      Empty -> Empty
+      Full f -> mapOptional f opta
+--
+--
+--
+--Alyssa is a cheaty pants: (<*>) = applyOptional
+--(<*>) f a =
+--  bindOptional (\f -> mapOptional f a) optf
+--  flatMap      (\f -> bindOptional (pure . f) opta) optf
+--
+--
+--
+--
 -- | Insert into a constant function.
 --
 -- >>> ((+) <*> (+10)) 3
@@ -137,17 +145,11 @@ instance Applicative Optional where
 --
 -- prop> pure x y == x
 instance Applicative ((->) t) where
-  pure ::
-    a
-    -> ((->) t a)
-  pure =
-    error "todo: Course.Applicative pure#((->) t)"
-  (<*>) ::
-    ((->) t (a -> b))
-    -> ((->) t a)
-    -> ((->) t b)
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance ((->) t)"
+  pure :: a -> (t -> a)
+  pure = const
+  (<*>) :: (t -> (a -> b)) -> (t -> a) -> (t -> b)
+--(<*>) = \t2ab t2a t -> t2ab (\a2b -> t2a)
+  (<*>) = \t2ab t2a t -> t2ab t (t2a t)
 
 
 -- | Apply a binary function in the environment.
@@ -169,14 +171,12 @@ instance Applicative ((->) t) where
 --
 -- >>> lift2 (+) length sum (listh [4,5,6])
 -- 18
-lift2 ::
-  Applicative f =>
-  (a -> b -> c)
-  -> f a
-  -> f b
-  -> f c
-lift2 =
-  error "todo: Course.Applicative#lift2"
+lift2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
+lift2 abc fa fb =
+  -- abc type is: f (b -> c)
+  -- we need a function that goes from f b , to f c
+  -- Use apply
+  abc <$> fa <*> fb
 
 -- | Apply a ternary function in the environment.
 --
@@ -200,15 +200,12 @@ lift2 =
 --
 -- >>> lift3 (\a b c -> a + b + c) length sum product (listh [4,5,6])
 -- 138
-lift3 ::
-  Applicative f =>
-  (a -> b -> c -> d)
-  -> f a
-  -> f b
-  -> f c
-  -> f d
-lift3 =
-  error "todo: Course.Applicative#lift3"
+lift3 :: Applicative f => (a -> b -> c -> d) -> f a -> f b -> f c -> f d
+-- lift2 :: (a -> b -> c -> d) -> f a -> f b -> f (c -> d)
+lift3 fabcd fa fb fc =
+  fabcd <$> fa <*> fb <*> fc
+
+
 
 -- | Apply a quaternary function in the environment.
 --
@@ -240,8 +237,8 @@ lift4 ::
   -> f c
   -> f d
   -> f e
-lift4 =
-  error "todo: Course.Applicative#lift4"
+lift4 fabcde fa fb fc fd =
+  fabcde <$> fa <*> fb <*> fc <*> fd
 
 -- | Apply, discarding the value of the first argument.
 -- Pronounced, right apply.
@@ -261,13 +258,9 @@ lift4 =
 -- prop> (a :. b :. c :. Nil) *> (x :. y :. z :. Nil) == (x :. y :. z :. x :. y :. z :. x :. y :. z :. Nil)
 --
 -- prop> Full x *> Full y == Full y
-(*>) ::
-  Applicative f =>
-  f a
-  -> f b
-  -> f b
+(*>) :: Applicative f => f a -> f b -> f b
 (*>) =
-  error "todo: Course.Applicative#(*>)"
+  lift2 (flip const)
 
 -- | Apply, discarding the value of the second argument.
 -- Pronounced, left apply.
@@ -293,7 +286,7 @@ lift4 =
   -> f a
   -> f b
 (<*) =
-  error "todo: Course.Applicative#(<*)"
+  lift2 const
 
 -- | Sequences a list of structures to a structure of list.
 --
@@ -311,12 +304,9 @@ lift4 =
 --
 -- >>> sequence ((*10) :. (+2) :. Nil) 6
 -- [60,8]
-sequence ::
-  Applicative f =>
-  List (f a)
-  -> f (List a)
-sequence =
-  error "todo: Course.Applicative#sequence"
+sequence :: Applicative f => List (f a) -> f (List a)
+sequence Nil = pure Nil
+sequence (h:.t) = lift2 (:.) h (sequence t)
 
 -- | Replicate an effect a given number of times.
 --
